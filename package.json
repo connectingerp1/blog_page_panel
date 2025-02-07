@@ -15,9 +15,9 @@
      "@sendgrid/mail": "^7.4.0"
   },
   "scripts": {
-    "start": "nodemon blogsPanel.js",
-    "dev": "nodemon blogsPanel.js",
-    "backend": "nodemon blogsPanel.js"
+    "start": "node blogsPanel.js",
+    "dev": "node blogsPanel.js",
+    "backend": "node blogsPanel.js"
   },
   "main": "server.js",
   "license": "ISC"
