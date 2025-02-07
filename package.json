@@ -15,7 +15,7 @@
      "@sendgrid/mail": "^7.4.0"
   },
   "scripts": {
-    "start": "node blogsPanel.js",
+    "start": "nodemon blogsPanel.js",
     "dev": "nodemon blogsPanel.js",
     "backend": "nodemon blogsPanel.js"
   },
