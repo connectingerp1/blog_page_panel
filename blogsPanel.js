@@ -10,11 +10,7 @@ const app = express();
 app.use(cors({
   origin: [
     'https://www.connectingdotserp.com',
-    'http://localhost:5000',
-    "http://localhost:3999",     
-    "http://localhost:4000",     
-    'https://qhvpqmhj-3999.inc1.devtunnels.ms',
-    'https://qhvpqmhj-5000.inc1.devtunnels.ms',
+    'https://qhvpqmhj-3999.inc1.devtunnels.ms'
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ['Content-Type', 'Authorization'],
