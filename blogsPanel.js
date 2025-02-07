@@ -25,7 +25,7 @@ app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MongoDB Connection for Blogs
-mongoose.connect(process.env.MONGO_BLOGS_URI, {
+mongoose.connect('mongodb+srv://connectingerp1:DMcderp%40123@cluster0.vxukv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 })
