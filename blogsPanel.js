@@ -7,11 +7,19 @@ const path = require("path");
 
 const app = express();
 
+const cors = require('cors');
+
 app.use(cors({
-  origin: [
-    'https://www.connectingdotserp.com',
-    'https://qhvpqmhj-3999.inc1.devtunnels.ms'
-  ],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://www.connectingdotserp.com'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
