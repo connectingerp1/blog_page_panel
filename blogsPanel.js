@@ -21,12 +21,10 @@ app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MongoDB Connection for Blogs
-mongoose.connect('mongodb+srv://connectingerp1:DMcderp%40123@cluster0.vxukv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => console.log("✅ Blogs MongoDB Connected"))
-.catch((err) => console.error("❌ MongoDB Connection Error:", err));
+mongoose.connect('mongodb+srv://connectingerp1:DMcderp%40123@cluster0.vxukv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+  .then(() => console.log("✅ Blogs MongoDB Connected"))
+  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
+
 
 // Blog Schema & Model
 const blogSchema = new mongoose.Schema({
