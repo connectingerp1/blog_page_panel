@@ -7,21 +7,31 @@ const path = require("path");
 
 const app = express();
 
-app.use(cors({
+const allowedOrigins = [
+  'https://www.connectingdotserp.com',
+  'https://connectingdotserp.com'
+];
+
+const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://www.connectingdotserp.com'
-    ];
     if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+      callback(null, true); // Allow request
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Not allowed by CORS')); // Block request
     }
   },
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
-}));
+};
+
+app.use(cors(corsOptions));
+
+// Debugging Middleware to Check Incoming Origin
+app.use((req, res, next) => {
+  console.log("Incoming Request Origin:", req.headers.origin);
+  next();
+});
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
