@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+
 
 const app = express();
 
@@ -34,7 +36,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // MongoDB Connection for Blogs
 mongoose.connect('mongodb+srv://connectingerp1:DMcderp%40123@cluster0.vxukv.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
@@ -53,14 +54,20 @@ const blogSchema = new mongoose.Schema({
 const Blog = mongoose.model("Blog", blogSchema);
 
 // Multer setup for file uploads
+const uploadDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, "uploads"));
+    cb(null, uploadDir); // Ensure files are stored in the created directory
   },
   filename: (req, file, cb) => {
     cb(null, Date.now() + "-" + file.originalname);
   }
 });
+
 const upload = multer({ storage });
 
 // Fetch all blogs
