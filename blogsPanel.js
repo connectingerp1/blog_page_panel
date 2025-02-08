@@ -99,7 +99,9 @@ app.get("/api/blogs/:id", async (req, res) => {
 app.post("/api/blogs", upload.single("image"), async (req, res) => {
   try {
     const { title, content, category, author } = req.body;
-    const imagePath = req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : null;
+    const imagePath = req.file 
+      ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` 
+      : null;
     const newBlog = new Blog({ title, content, category, author, image: imagePath });
     await newBlog.save();
     res.status(201).json({ message: "Blog created successfully", blog: newBlog });
