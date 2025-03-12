@@ -13,7 +13,7 @@ const app = express();
 const allowedOrigins = [
   "https://www.connectingdotserp.com",
   "https://connectingdotserp.com",
-  "https://z9xp1gq0-3000.inc1.devtunnels.ms",
+  "https://connecting-dots-next-9tvm.vercel.app",
 ];
 
 const corsOptions = {
@@ -55,6 +55,7 @@ const blogSchema = new mongoose.Schema({
   subcategory: { type: String, required: true },
   author: { type: String, required: true },
   image: { type: String },
+  imagePublicId: { type: String }, // Added to store Cloudinary public_id
 });
 
 const Blog = mongoose.model("Blog", blogSchema);
@@ -65,6 +66,38 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+// ✅ Helper function to extract public_id from Cloudinary URL
+const getPublicIdFromUrl = (url) => {
+  if (!url) return null;
+  
+  try {
+    // Extract the public ID from the URL (format: .../upload/v1234567890/folder/public_id.extension)
+    const urlParts = url.split('/');
+    const fileNameWithExtension = urlParts[urlParts.length - 1];
+    const publicIdWithFolder = urlParts.slice(-2).join('/');
+    
+    // Remove file extension to get the public ID
+    return publicIdWithFolder.substring(0, publicIdWithFolder.lastIndexOf('.'));
+  } catch (error) {
+    console.error("Error extracting public ID:", error);
+    return null;
+  }
+};
+
+// ✅ Helper function to delete image from Cloudinary
+const deleteCloudinaryImage = async (publicId) => {
+  if (!publicId) return;
+  
+  try {
+    console.log(`Attempting to delete Cloudinary image with public ID: ${publicId}`);
+    const result = await cloudinary.uploader.destroy(publicId);
+    console.log(`Cloudinary deletion result:`, result);
+    return result;
+  } catch (error) {
+    console.error(`Error deleting Cloudinary image ${publicId}:`, error);
+  }
+};
 
 // ✅ Multer Storage for Cloudinary
 const storage = new CloudinaryStorage({
@@ -113,9 +146,25 @@ app.get("/api/blogs/:id", async (req, res) => {
 app.post("/api/blogs", upload.single("image"), async (req, res) => {
   try {
     const { title, content, category, subcategory, author } = req.body;
-    const imagePath = req.file ? req.file.path : null; // Cloudinary URL
+    
+    let imagePath = null;
+    let imagePublicId = null;
+    
+    if (req.file) {
+      imagePath = req.file.path; // Cloudinary URL
+      imagePublicId = req.file.filename || getPublicIdFromUrl(imagePath);
+    }
 
-    const newBlog = new Blog({ title, content, category, subcategory, author, image: imagePath });
+    const newBlog = new Blog({ 
+      title, 
+      content, 
+      category, 
+      subcategory, 
+      author, 
+      image: imagePath,
+      imagePublicId
+    });
+    
     await newBlog.save();
 
     res.status(201).json({ message: "Blog created successfully", blog: newBlog });
@@ -124,20 +173,32 @@ app.post("/api/blogs", upload.single("image"), async (req, res) => {
   }
 });
 
-// ✅ Update a blog (Supports optional image update)
+// ✅ Update a blog (Supports optional image update and deletes old image)
 app.put("/api/blogs/:id", upload.single("image"), async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ message: "Invalid Blog ID format" });
     }
 
+    // Find the existing blog to get the current image public ID
+    const existingBlog = await Blog.findById(req.params.id);
+    if (!existingBlog) return res.status(404).json({ message: "Blog not found" });
+    
     let updatedData = req.body;
+    
+    // If a new image is uploaded, update the image fields and delete the old image
     if (req.file) {
-      updatedData.image = req.file.path; // Update image URL from Cloudinary
+      // Delete the old image if exists
+      if (existingBlog.imagePublicId) {
+        await deleteCloudinaryImage(existingBlog.imagePublicId);
+      }
+      
+      // Update with new image details
+      updatedData.image = req.file.path;
+      updatedData.imagePublicId = req.file.filename || getPublicIdFromUrl(req.file.path);
     }
 
     const updatedBlog = await Blog.findByIdAndUpdate(req.params.id, updatedData, { new: true });
-    if (!updatedBlog) return res.status(404).json({ message: "Blog not found" });
 
     res.json({ message: "Blog updated successfully", blog: updatedBlog });
   } catch (err) {
@@ -145,17 +206,26 @@ app.put("/api/blogs/:id", upload.single("image"), async (req, res) => {
   }
 });
 
-// ✅ Delete a blog
+// ✅ Delete a blog and its associated image
 app.delete("/api/blogs/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ message: "Invalid Blog ID format" });
     }
 
-    const deletedBlog = await Blog.findByIdAndDelete(req.params.id);
-    if (!deletedBlog) return res.status(404).json({ message: "Blog not found" });
+    // Find the blog to get the image public ID
+    const blogToDelete = await Blog.findById(req.params.id);
+    if (!blogToDelete) return res.status(404).json({ message: "Blog not found" });
+    
+    // Delete the associated image from Cloudinary if exists
+    if (blogToDelete.imagePublicId) {
+      await deleteCloudinaryImage(blogToDelete.imagePublicId);
+    }
 
-    res.json({ message: "Blog deleted successfully" });
+    // Delete the blog from the database
+    await Blog.findByIdAndDelete(req.params.id);
+
+    res.json({ message: "Blog and associated image deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Error deleting blog", error: err.message });
   }
