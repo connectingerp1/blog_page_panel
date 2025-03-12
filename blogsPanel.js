@@ -13,7 +13,7 @@ const app = express();
 const allowedOrigins = [
   "https://www.connectingdotserp.com",
   "https://connectingdotserp.com",
-  "https://connecting-dots-next-9tvm.vercel.app",
+  "https://blog-frontend-psi-bay.vercel.app",
 ];
 
 const corsOptions = {
