@@ -52,10 +52,19 @@ const blogSchema = new mongoose.Schema({
   title: { type: String, required: true },
   content: { type: String, required: true },
   category: { type: String, required: true },
-  subcategory: { type: String, required: true },
+  subcategory: { 
+    type: String, 
+    required: true,
+    enum: ["Article", "Tutorial", "Interview Questions"] 
+  },
   author: { type: String, required: true },
   image: { type: String },
-  imagePublicId: { type: String }, // Added to store Cloudinary public_id
+  imagePublicId: { type: String },
+  status: { 
+    type: String, 
+    enum: ["Trending", "Featured", "Editor's Pick", "Recommended", "None"], 
+    default: "None" 
+  },
 });
 
 const Blog = mongoose.model("Blog", blogSchema);
@@ -111,13 +120,14 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
-// ✅ Fetch all blogs (supports category & subcategory filtering)
+// ✅ Fetch all blogs (supports category, subcategory & status filtering)
 app.get("/api/blogs", async (req, res) => {
   try {
-    const { category, subcategory } = req.query;
+    const { category, subcategory, status } = req.query;
     let query = {};
     if (category) query.category = category;
     if (subcategory) query.subcategory = subcategory;
+    if (status) query.status = status;
 
     const blogs = await Blog.find(query);
     res.json(blogs);
@@ -145,7 +155,7 @@ app.get("/api/blogs/:id", async (req, res) => {
 // ✅ Create a new blog with Cloudinary image upload
 app.post("/api/blogs", upload.single("image"), async (req, res) => {
   try {
-    const { title, content, category, subcategory, author } = req.body;
+    const { title, content, category, subcategory, author, status } = req.body;
     
     let imagePath = null;
     let imagePublicId = null;
@@ -162,7 +172,8 @@ app.post("/api/blogs", upload.single("image"), async (req, res) => {
       subcategory, 
       author, 
       image: imagePath,
-      imagePublicId
+      imagePublicId,
+      status: status || "None"
     });
     
     await newBlog.save();
