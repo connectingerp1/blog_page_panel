@@ -11,6 +11,7 @@ const app = express();
 
 // Allowed Origins for CORS
 const allowedOrigins = [
+  "https://connectingdotserp.com",
   "https://www.connectingdotserp.com",
   "http://localhost:3000",
 ];
