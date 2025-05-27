@@ -12,8 +12,7 @@ const app = express();
 // Allowed Origins for CORS
 const allowedOrigins = [
   "https://www.connectingdotserp.com",
-  "https://connectingdotserp.com",
-  "https://blog-frontend-psi-bay.vercel.app",
+  "http://localhost:3000",
 ];
 
 const corsOptions = {
@@ -119,6 +118,11 @@ const storage = new CloudinaryStorage({
 });
 
 const upload = multer({ storage });
+
+// === Wake/Ping Endpoint ===
+app.get('/api/blogs/ping', (req, res) => {
+  res.status(200).json({ message: 'Server is awake!' });
+});
 
 // ✅ Fetch all blogs (supports category, subcategory & status filtering)
 app.get("/api/blogs", async (req, res) => {
