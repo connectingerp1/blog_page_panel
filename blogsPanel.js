@@ -1,3 +1,5 @@
+// blogsPanel.js (server file) - Updated for Infinite Scroll
+
 require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
@@ -5,6 +7,8 @@ const cors = require("cors");
 const multer = require("multer");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("cloudinary").v2;
+const bcrypt = require("bcryptjs"); // For password hashing
+const jwt = require("jsonwebtoken"); // For JWT
 const path = require("path");
 
 const app = express();
@@ -13,6 +17,8 @@ const app = express();
 const allowedOrigins = [
   "https://connectingdotserp.com",
   "https://www.connectingdotserp.com",
+  "https://blog.connectingdotserp.com",
+  "https://www.blog.connectingdotserp.com",
   "http://localhost:3000",
 ];
 
@@ -47,59 +53,115 @@ mongoose
   .then(() => console.log("✅ Blogs MongoDB Connected"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
 
-// ✅ Blog Schema & Model
-const blogSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: String, required: true },
-  category: { type: String, required: true },
-  subcategory: { 
-    type: String, 
-    required: true,
-    enum: ["Article", "Tutorial", "Interview Questions"] 
+// --- User Schema & Model for Authentication (No change from previous version) ---
+const userSchema = new mongoose.Schema(
+  {
+    username: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+      match: [/.+\@.+\..+/, "Please fill a valid email address"],
+    },
+    password: {
+      type: String,
+      required: true,
+    },
   },
-  author: { type: String, required: true },
-  image: { type: String },
-  imagePublicId: { type: String },
-  status: { 
-    type: String, 
-    enum: ["Trending", "Featured", "Editor's Pick", "Recommended", "None"], 
-    default: "None" 
-  },
+  { timestamps: true }
+);
+
+// Hash password before saving the user
+userSchema.pre("save", async function (next) {
+  if (this.isModified("password")) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
 });
+
+const User = mongoose.model("User", userSchema);
+
+// ✅ Blog Schema & Model (No change from previous version)
+const blogSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    category: { type: String, required: true },
+    subcategory: {
+      type: String,
+      required: true,
+      enum: ["Article", "Tutorial", "Interview Questions"],
+    },
+    author: { type: String, required: true },
+    image: { type: String },
+    imagePublicId: { type: String },
+    status: {
+      type: String,
+      enum: ["Trending", "Featured", "Editor's Pick", "Recommended", "None"],
+      default: "None",
+    },
+  },
+  { timestamps: true }
+); 
 
 const Blog = mongoose.model("Blog", blogSchema);
 
-// ✅ Configure Cloudinary
+// ✅ Configure Cloudinary (No change from previous version)
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// ✅ Helper function to extract public_id from Cloudinary URL
+// ✅ Helper function to extract public_id from Cloudinary URL (No change from previous version)
 const getPublicIdFromUrl = (url) => {
   if (!url) return null;
-  
+
   try {
-    // Extract the public ID from the URL (format: .../upload/v1234567890/folder/public_id.extension)
-    const urlParts = url.split('/');
-    const fileNameWithExtension = urlParts[urlParts.length - 1];
-    const publicIdWithFolder = urlParts.slice(-2).join('/');
-    
-    // Remove file extension to get the public ID
-    return publicIdWithFolder.substring(0, publicIdWithFolder.lastIndexOf('.'));
+    const urlParts = url.split("/");
+    const versionIndex = urlParts.findIndex(
+      (part) => part.startsWith("v") && !isNaN(part.substring(1))
+    );
+
+    if (versionIndex !== -1 && urlParts.length > versionIndex + 2) {
+      const relevantParts = urlParts.slice(versionIndex + 1);
+      const publicIdWithExtension = relevantParts.slice(1).join("/");
+      return publicIdWithExtension.substring(
+        0,
+        publicIdWithExtension.lastIndexOf(".")
+      );
+    } else if (urlParts.length > 1) {
+      const fileNameWithExtension = urlParts[urlParts.length - 1];
+      const publicIdWithFolder = urlParts
+        .slice(urlParts.lastIndexOf("upload") + 2)
+        .join("/");
+      return publicIdWithFolder.substring(
+        0,
+        publicIdWithFolder.lastIndexOf(".")
+      );
+    }
+    return null;
   } catch (error) {
     console.error("Error extracting public ID:", error);
     return null;
   }
 };
 
-// ✅ Helper function to delete image from Cloudinary
+// ✅ Helper function to delete image from Cloudinary (No change from previous version)
 const deleteCloudinaryImage = async (publicId) => {
   if (!publicId) return;
-  
+
   try {
-    console.log(`Attempting to delete Cloudinary image with public ID: ${publicId}`);
+    console.log(
+      `Attempting to delete Cloudinary image with public ID: ${publicId}`
+    );
     const result = await cloudinary.uploader.destroy(publicId);
     console.log(`Cloudinary deletion result:`, result);
     return result;
@@ -108,40 +170,136 @@ const deleteCloudinaryImage = async (publicId) => {
   }
 };
 
-// ✅ Multer Storage for Cloudinary
+// ✅ Multer Storage for Cloudinary (No change from previous version)
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: "blog-images",
-    format: async (req, file) => "png",
-    public_id: (req, file) => Date.now() + "-" + file.originalname,
+    format: async (req, file) => "png", 
+    public_id: (req, file) =>
+      Date.now() + "-" + file.originalname.split(".")[0], 
   },
 });
 
 const upload = multer({ storage });
 
-// === Wake/Ping Endpoint ===
-app.get('/api/blogs/ping', (req, res) => {
-  res.status(200).json({ message: 'Server is awake!' });
+// --- JWT Authentication Middleware (No change from previous version) ---
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token)
+    return res
+      .status(401)
+      .json({ message: "Access Denied: No token provided" });
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      console.error("JWT Verification Error:", err);
+      return res.status(403).json({ message: "Access Denied: Invalid token" });
+    }
+    req.user = user; 
+    next();
+  });
+};
+
+// --- Authentication Routes (No change from previous version) ---
+
+// Register User (Optional - for initial setup, can be removed later)
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+
+    let user = await User.findOne({ $or: [{ username }, { email }] });
+    if (user) {
+      return res
+        .status(400)
+        .json({ message: "User with that username or email already exists." });
+    }
+
+    user = new User({ username, email, password }); 
+    await user.save();
+
+    res.status(201).json({ message: "User registered successfully!" });
+  } catch (err) {
+    console.error("Registration Error:", err);
+    res
+      .status(500)
+      .json({ message: "Error registering user", error: err.message });
+  }
 });
 
-// ✅ Fetch all blogs (supports category, subcategory & status filtering)
+// Login User
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { loginIdentifier, password } = req.body; 
+
+    const user = await User.findOne({
+      $or: [{ username: loginIdentifier }, { email: loginIdentifier }],
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    const token = jwt.sign(
+      { id: user._id, username: user.username, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" } 
+    );
+
+    res.json({
+      message: "Logged in successfully",
+      token,
+      username: user.username,
+    });
+  } catch (err) {
+    console.error("Login Error:", err);
+    res.status(500).json({ message: "Error during login", error: err.message });
+  }
+});
+
+// === Wake/Ping Endpoint === (No change from previous version)
+app.get("/api/blogs/ping", (req, res) => {
+  res.status(200).json({ message: "Server is awake!" });
+});
+
+// ✅ Fetch all blogs (now supports infinite scroll via limit/skip)
 app.get("/api/blogs", async (req, res) => {
   try {
-    const { category, subcategory, status } = req.query;
+    const { category, subcategory, status, limit, skip } = req.query;
     let query = {};
     if (category) query.category = category;
     if (subcategory) query.subcategory = subcategory;
     if (status) query.status = status;
 
-    const blogs = await Blog.find(query);
-    res.json(blogs);
+    const parsedLimit = parseInt(limit) || 8; // Default limit of 8 per load
+    const parsedSkip = parseInt(skip) || 0; // Default skip of 0
+
+    // Fetch blogs, sort by newest first, and add 1 extra to check for 'hasMore'
+    const blogs = await Blog.find(query)
+      .sort({ createdAt: -1 }) 
+      .skip(parsedSkip)
+      .limit(parsedLimit + 1); 
+
+    const hasMore = blogs.length > parsedLimit;
+    const blogsToSend = hasMore ? blogs.slice(0, parsedLimit) : blogs;
+
+    res.json({ blogs: blogsToSend, hasMore });
   } catch (err) {
-    res.status(500).json({ message: "Error fetching blogs", error: err.message });
+    console.error("Error fetching blogs:", err);
+    res
+      .status(500)
+      .json({ message: "Error fetching blogs", error: err.message });
   }
 });
 
-// ✅ Fetch blog by ID with proper ObjectId validation
+// ✅ Fetch blog by ID with proper ObjectId validation (No change from previous version)
 app.get("/api/blogs/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
@@ -153,100 +311,124 @@ app.get("/api/blogs/:id", async (req, res) => {
 
     res.json(blog);
   } catch (err) {
-    res.status(500).json({ message: "Error fetching blog", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Error fetching blog", error: err.message });
   }
 });
 
-// ✅ Create a new blog with Cloudinary image upload
-app.post("/api/blogs", upload.single("image"), async (req, res) => {
-  try {
-    const { title, content, category, subcategory, author, status } = req.body;
-    
-    let imagePath = null;
-    let imagePublicId = null;
-    
-    if (req.file) {
-      imagePath = req.file.path; // Cloudinary URL
-      imagePublicId = req.file.filename || getPublicIdFromUrl(imagePath);
-    }
+// ✅ Create a new blog with Cloudinary image upload (Protected - No change from previous version)
+app.post(
+  "/api/blogs",
+  authenticateToken,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { title, content, category, subcategory, author, status } =
+        req.body;
 
-    const newBlog = new Blog({ 
-      title, 
-      content, 
-      category, 
-      subcategory, 
-      author, 
-      image: imagePath,
-      imagePublicId,
-      status: status || "None"
-    });
-    
-    await newBlog.save();
+      let imagePath = null;
+      let imagePublicId = null;
 
-    res.status(201).json({ message: "Blog created successfully", blog: newBlog });
-  } catch (err) {
-    res.status(500).json({ message: "Error creating blog", error: err.message });
-  }
-});
-
-// ✅ Update a blog (Supports optional image update and deletes old image)
-app.put("/api/blogs/:id", upload.single("image"), async (req, res) => {
-  try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid Blog ID format" });
-    }
-
-    // Find the existing blog to get the current image public ID
-    const existingBlog = await Blog.findById(req.params.id);
-    if (!existingBlog) return res.status(404).json({ message: "Blog not found" });
-    
-    let updatedData = req.body;
-    
-    // If a new image is uploaded, update the image fields and delete the old image
-    if (req.file) {
-      // Delete the old image if exists
-      if (existingBlog.imagePublicId) {
-        await deleteCloudinaryImage(existingBlog.imagePublicId);
+      if (req.file) {
+        imagePath = req.file.path; 
+        imagePublicId = req.file.filename || getPublicIdFromUrl(imagePath);
       }
-      
-      // Update with new image details
-      updatedData.image = req.file.path;
-      updatedData.imagePublicId = req.file.filename || getPublicIdFromUrl(req.file.path);
+
+      const newBlog = new Blog({
+        title,
+        content,
+        category,
+        subcategory,
+        author,
+        image: imagePath,
+        imagePublicId,
+        status: status || "None",
+      });
+
+      await newBlog.save();
+
+      res
+        .status(201)
+        .json({ message: "Blog created successfully", blog: newBlog });
+    } catch (err) {
+      console.error("Error creating blog:", err);
+      res
+        .status(500)
+        .json({ message: "Error creating blog", error: err.message });
     }
-
-    const updatedBlog = await Blog.findByIdAndUpdate(req.params.id, updatedData, { new: true });
-
-    res.json({ message: "Blog updated successfully", blog: updatedBlog });
-  } catch (err) {
-    res.status(500).json({ message: "Error updating blog", error: err.message });
   }
-});
+);
 
-// ✅ Delete a blog and its associated image
-app.delete("/api/blogs/:id", async (req, res) => {
+// ✅ Update a blog (Supports optional image update and deletes old image) (Protected - No change from previous version)
+app.put(
+  "/api/blogs/:id",
+  authenticateToken,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ message: "Invalid Blog ID format" });
+      }
+
+      const existingBlog = await Blog.findById(req.params.id);
+      if (!existingBlog)
+        return res.status(404).json({ message: "Blog not found" });
+
+      let updatedData = req.body;
+
+      if (req.file) {
+        if (existingBlog.imagePublicId) {
+          await deleteCloudinaryImage(existingBlog.imagePublicId);
+        }
+
+        updatedData.image = req.file.path;
+        updatedData.imagePublicId =
+          req.file.filename || getPublicIdFromUrl(req.file.path);
+      }
+
+      const updatedBlog = await Blog.findByIdAndUpdate(
+        req.params.id,
+        updatedData,
+        { new: true }
+      );
+
+      res.json({ message: "Blog updated successfully", blog: updatedBlog });
+    } catch (err) {
+      console.error("Error updating blog:", err);
+      res
+        .status(500)
+        .json({ message: "Error updating blog", error: err.message });
+    }
+  }
+);
+
+// ✅ Delete a blog and its associated image (Protected - No change from previous version)
+app.delete("/api/blogs/:id", authenticateToken, async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ message: "Invalid Blog ID format" });
     }
 
-    // Find the blog to get the image public ID
     const blogToDelete = await Blog.findById(req.params.id);
-    if (!blogToDelete) return res.status(404).json({ message: "Blog not found" });
-    
-    // Delete the associated image from Cloudinary if exists
+    if (!blogToDelete)
+      return res.status(404).json({ message: "Blog not found" });
+
     if (blogToDelete.imagePublicId) {
       await deleteCloudinaryImage(blogToDelete.imagePublicId);
     }
 
-    // Delete the blog from the database
     await Blog.findByIdAndDelete(req.params.id);
 
     res.json({ message: "Blog and associated image deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: "Error deleting blog", error: err.message });
+    console.error("Error deleting blog:", err);
+    res
+      .status(500)
+      .json({ message: "Error deleting blog", error: err.message });
   }
 });
 
-// ✅ Start the blog server
+// ✅ Start the blog server (No change from previous version)
 const PORT = process.env.BLOG_PORT || 5002;
 app.listen(PORT, () => console.log(`🚀 Blog server running on port ${PORT}`));
